@@ -25,7 +25,7 @@
                 <p style="margin:5px 0 0 0; color:#666;">Automated Medication Error DataSheet</p>
             </div>
             <div>
-                <button class="btn btn-secondary" onclick="exportToCSV()">ðŸ“¥ Download CSV</button>
+                <button class="btn btn-secondary" onclick="exportToCSV()">Ã°Å¸â€œÂ¥ Download CSV</button>
                 <button class="btn" style="background:#f44336; color:white;" onclick="logout()">Logout</button>
             </div>
         </div>
@@ -85,10 +85,41 @@
 
             const cols = Object.keys(data[0]);
 
-            // Render Headers
+            // Render Multi-Row Headers
+            const sectionMap = {
+                'Patient Info': ['Audit TimeStamp', 'Auditor Name', 'Encounter', 'Patient Name', 'Department', 'UHID', 'Admission Date', 'Age/Gender', 'Consultant', 'Diagnosis', 'Transcribed?', 'Chart Image'],
+                'Drug Info': ['Drug Name', 'Dose', 'Route', 'Frequency'],
+                'Prescription Errors': ['Rx: Inappropriate selection', 'Rx: CAPITAL LETTERS', 'Rx: Illegible', 'Rx: Abbreviations', 'Rx: Generic name', 'Rx: Wrong Dose', 'Rx: Wrong Route', 'Rx: IV Incompat.', 'Rx Remarks', 'Rx Evidence'],
+                'Transcription Errors': ['Tx: Wrong drug', 'Tx: Wrong route', 'Tx Remarks', 'Tx Evidence'],
+                'Dispensing Errors': ['Disp: Wrong drug', 'Disp: Expired', 'Disp Remarks', 'Disp Evidence'],
+                'Administration Errors': ['Admin: Omission', 'Admin: Wrong patient', 'Admin Remarks', 'Admin Evidence']
+            };
+
             let headHtml = '<tr>';
-            cols.forEach(c => headHtml += `<th>${c}</th>`);
-            headHtml += '</tr>';
+            let subHeadHtml = '<tr>';
+
+            Object.keys(sectionMap).forEach(sec => {
+                let count = 0;
+                sectionMap[sec].forEach(c => { if(cols.includes(c)) count++; });
+
+                if(count > 0) {
+                    headHtml += `<th colspan="${count}" style="text-align:center; background:#1976d2; color:white; border-bottom:1px solid #90caf9;">${sec}</th>`;
+                }
+
+                sectionMap[sec].forEach(c => {
+                    if(cols.includes(c)) subHeadHtml += `<th>${c}</th>`;
+                });
+            });
+
+            // Map any unhandled columns just in case
+            const mappedCols = Object.values(sectionMap).flat();
+            const unmapped = cols.filter(c => !mappedCols.includes(c));
+            if (unmapped.length > 0) {
+                headHtml += `<th colspan="${unmapped.length}" style="text-align:center; background:#546e7a; color:white;">Other Info</th>`;
+                unmapped.forEach(c => subHeadHtml += `<th>${c}</th>`);
+            }
+
+            headHtml += '</tr>' + subHeadHtml + '</tr>';
             document.getElementById('ds-head').innerHTML = headHtml;
 
             // Render Body
