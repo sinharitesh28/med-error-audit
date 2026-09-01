@@ -365,7 +365,7 @@ async function submitForm(e) {
             const response = await fetch('/api/audit/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patient, drugs })
+                body: JSON.stringify({ patient, drugs, session_token: localStorage.getItem('authToken') })
             });
 
             const result = await response.json();

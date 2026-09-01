@@ -41,6 +41,7 @@
             <!-- Compact Patient Context -->
             <div class="card" id="patient-section">
                 <h2>Patient Context (OPD)</h2>
+                
                 <div style="display:flex; gap:15px;">
                     <div class="form-group" style="flex:1;"><label>Patient UHID *</label><input type="text" id="p-uhid" required></div>
                     <div class="form-group" style="flex:1;">
@@ -60,6 +61,18 @@
                         </select>
                     </div>
                 </div>
+
+                <div style="display:flex; gap:15px; margin-top:15px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Date of Visit / Admission</label>
+                        <input type="date" id="p-doa">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Upload Common Prescription Image 📷</label>
+                        <input type="file" id="p-chart-file" accept="image/*" capture="environment">
+                    </div>
+                </div>
+
 
                 <div style="display:flex; gap:15px;">
                     <div class="form-group" style="flex:1;">

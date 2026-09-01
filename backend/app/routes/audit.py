@@ -69,27 +69,27 @@ def submit_audit(data: AuditSubmission):
             update_query = '''
                 UPDATE patients 
                 SET patient_name=%s, department=%s, age=%s, age_unit=%s, gender=%s, 
-                    diagnosis_term=%s, diagnosis_code=%s, encounter_type=%s
+                    diagnosis_term=%s, diagnosis_code=%s, encounter_type=%s, auditor_name=%s
                 WHERE id=%s
             '''
             cursor.execute(update_query, (
                 data.patient.patient_name, data.patient.department, data.patient.age, 
                 data.patient.age_unit, data.patient.gender, data.patient.diagnosis_term, 
-                data.patient.diagnosis_code, data.patient.encounter_type, patient_id
+                data.patient.diagnosis_code, data.patient.encounter_type, auditor_name, patient_id
             ))
         else:
             patient_query = '''
                 INSERT INTO patients (
                     uhid, patient_name, department, date_of_admission, 
                     age, age_unit, gender, consultant_name, diagnosis_term, diagnosis_code,
-                    is_transcribed, treatment_chart_url, encounter_type
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    is_transcribed, treatment_chart_url, encounter_type, auditor_name
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             '''
             cursor.execute(patient_query, (
                 data.patient.uhid, data.patient.patient_name, data.patient.department, 
                 data.patient.date_of_admission, data.patient.age, data.patient.age_unit,
                 data.patient.gender, data.patient.consultant_name, data.patient.diagnosis_term, 
-                data.patient.diagnosis_code, data.patient.is_transcribed, data.patient.treatment_chart_url, data.patient.encounter_type
+                data.patient.diagnosis_code, data.patient.is_transcribed, data.patient.treatment_chart_url, data.patient.encounter_type, auditor_name
             ))
             patient_id = cursor.lastrowid
 
@@ -137,7 +137,7 @@ def get_datasheet():
             SELECT 
                 p.id as p_id, p.encounter_type, p.patient_name, p.department, p.uhid, 
                 p.date_of_admission, p.age, p.age_unit, p.gender, p.consultant_name, 
-                p.diagnosis_term, p.is_transcribed, p.treatment_chart_url,
+                p.diagnosis_term, p.is_transcribed, p.treatment_chart_url, p.auditor_name, p.created_at,
                 d.id as d_id, d.drug_term, d.dose, d.route, d.frequency,
                 e.error_category, e.sub_category, e.severity, e.remarks, e.evidence_image_url
             FROM patients p
@@ -201,6 +201,8 @@ def get_datasheet():
                 return " | ".join(meta) if meta else ""
 
             row = {
+                "Audit TimeStamp": str(p.get('created_at', '')),
+                "Auditor Name": p.get('auditor_name', 'Unknown'),
                 "Encounter": p.get('encounter_type'),
                 "Patient Name": p.get('patient_name'),
                 "Department": p.get('department'),

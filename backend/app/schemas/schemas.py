@@ -1,47 +1,37 @@
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import date, datetime
-from enum import Enum
+from typing import List, Optional
 
-class SeverityEnum(str, Enum):
-    A = 'A'; B = 'B'; C = 'C'; D = 'D'; E = 'E'; F = 'F'; G = 'G'; H = 'H'; I = 'I'
-
-class PatientBase(BaseModel):
+class Patient(BaseModel):
     uhid: str
     patient_name: Optional[str] = None
-    department: Optional[str] = None
-    date_of_admission: Optional[date] = None
+    department: str
+    date_of_admission: Optional[str] = None
     age: Optional[int] = None
-    age_unit: Optional[str] = 'Years'
+    age_unit: Optional[str] = None
     gender: Optional[str] = None
     consultant_name: Optional[str] = None
     diagnosis_term: Optional[str] = None
     diagnosis_code: Optional[str] = None
-    is_transcribed: Optional[bool] = None
+    is_transcribed: Optional[str] = None
     treatment_chart_url: Optional[str] = None
     encounter_type: Optional[str] = 'IPD'
 
-class PatientCreate(PatientBase): pass
-
-class ErrorBase(BaseModel):
+class ErrorDetail(BaseModel):
     error_category: str
     sub_category: str
-    severity: SeverityEnum
+    severity: str
     remarks: Optional[str] = None
     evidence_image_url: Optional[str] = None
 
-class ErrorCreate(ErrorBase): pass
-
-class DrugBase(BaseModel):
+class Drug(BaseModel):
     drug_term: str
     drug_code: Optional[str] = None
     dose: Optional[str] = None
     route: Optional[str] = None
     frequency: Optional[str] = None
-
-class DrugCreate(DrugBase):
-    errors: Optional[List[ErrorCreate]] = []
+    errors: List[ErrorDetail] = []
 
 class AuditSubmission(BaseModel):
-    patient: PatientCreate
-    drugs: List[DrugCreate] = []
+    patient: Patient
+    drugs: List[Drug]
+    session_token: Optional[str] = None

@@ -25,9 +25,17 @@
                 <p style="margin:5px 0 0 0; color:#666;">Automated Medication Error DataSheet</p>
             </div>
             <div>
-                <button class="btn btn-secondary" onclick="exportToCSV()">📥 Download CSV</button>
+                <button class="btn btn-secondary" onclick="exportToCSV()">ðŸ“¥ Download CSV</button>
                 <button class="btn" style="background:#f44336; color:white;" onclick="logout()">Logout</button>
             </div>
+        </div>
+
+        
+        <div style="background:#f8f9fa; padding:15px; border-radius:6px; margin-top:20px; display:flex; gap:15px; align-items:center;">
+            <strong>Filter by Audit Date:</strong>
+            <label>From: <input type="date" id="filter-from" onchange="filterData()"></label>
+            <label>To: <input type="date" id="filter-to" onchange="filterData()"></label>
+            <button class="btn btn-secondary" style="padding:5px 10px;" onclick="document.getElementById('filter-from').value=''; document.getElementById('filter-to').value=''; filterData();">Clear</button>
         </div>
 
         <div class="table-wrapper">
@@ -49,6 +57,24 @@
                     renderTable(globalData);
                 }
             } catch(e) { alert("Failed to load datasheet: " + e.message); }
+        }
+
+        
+        function filterData() {
+            const fromDate = document.getElementById('filter-from').value;
+            const toDate = document.getElementById('filter-to').value;
+
+            const filtered = globalData.filter(row => {
+                const rowDateStr = row['Audit TimeStamp'];
+                if(!rowDateStr) return true;
+
+                const rowDate = rowDateStr.split(' ')[0]; // Extract YYYY-MM-DD
+
+                if(fromDate && rowDate < fromDate) return false;
+                if(toDate && rowDate > toDate) return false;
+                return true;
+            });
+            renderTable(filtered);
         }
 
         function renderTable(data) {

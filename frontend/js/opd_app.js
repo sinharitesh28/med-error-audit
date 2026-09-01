@@ -119,7 +119,7 @@ function toggleErrorPanel(btn, drugId) {
     const panel = document.getElementById(`error-panel-${drugId}`);
     if (panel.style.display === 'block') {
         panel.style.display = 'none';
-        btn.innerHTML = 'âš ï¸ Tag Error';
+        btn.innerHTML = 'Ã¢Å¡Â Ã¯Â¸ Tag Error';
         btn.style.background = '#ff9800';
     } else {
         panel.style.display = 'block';
@@ -182,7 +182,7 @@ function addOpdDrug() {
                 <input type="text" class="d-frequency">
             </div>
 
-            <button type="button" class="btn-tag-error" onclick="toggleErrorPanel(this, ${drugCount})">âš ï¸ Tag Error</button>
+            <button type="button" class="btn-tag-error" onclick="toggleErrorPanel(this, ${drugCount})">Ã¢Å¡Â Ã¯Â¸ Tag Error</button>
 
             <!-- HIDDEN ERROR PANEL -->
             <div class="opd-error-panel" id="error-panel-${drugCount}">
@@ -212,7 +212,7 @@ function addOpdDrug() {
                         <input type="text" class="e-remarks" placeholder="Brief description...">
                     </div>
                     <div class="form-group" style="flex:1; min-width:200px;">
-                        <label>Evidence Image ðŸ“·</label>
+                        <label>Evidence Image Ã°Å¸â€œÂ·</label>
                         <input type="file" class="e-image-file" accept="image/*" capture="environment">
                     </div>
                 </div>
@@ -264,8 +264,15 @@ async function submitOpdForm(e) {
         age_unit: document.getElementById('p-age-unit').value,
         gender: document.getElementById('p-gender').value,
         diagnosis_term: combinedTerms,
-        diagnosis_code: combinedCodes
+        diagnosis_code: combinedCodes,
+        date_of_admission: document.getElementById('p-doa').value
     };
+
+    const chartFile = document.getElementById('p-chart-file').files[0];
+    if(chartFile) {
+        submitBtn.textContent = 'Uploading Prescription...';
+        patient.treatment_chart_url = await uploadToDrive(chartFile, 'PatientCharts');
+    }
 
     const drugs = [];
     document.querySelectorAll('.opd-drug-row').forEach(async (rowEl) => {
@@ -286,14 +293,7 @@ async function submitOpdForm(e) {
 
             // Only push error if category is actually selected
             if(category && subCategory) {
-                const fileInput = panel.querySelector('.e-image-file');
                 let driveUrl = null;
-                if(fileInput.files.length > 0) {
-                    fileInput.parentElement.insertAdjacentHTML('beforeend', '<span class="uploading-txt" style="color:var(--secondary); font-size:12px;">Uploading...</span>');
-                    driveUrl = await uploadToDrive(fileInput.files[0], category);
-                    const upTxt = panel.querySelector('.uploading-txt');
-                    if(upTxt) upTxt.remove();
-                }
 
                 drug.errors.push({
                     error_category: category,
@@ -312,7 +312,7 @@ async function submitOpdForm(e) {
             const response = await fetch('/api/audit/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patient, drugs })
+                body: JSON.stringify({ patient, drugs, session_token: localStorage.getItem('authToken') })
             });
 
             const result = await response.json();
