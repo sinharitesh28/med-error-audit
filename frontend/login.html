@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Medication Audit</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .login-container { max-width: 500px; margin: 50px auto; text-align: center; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .qr-box { margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; display: inline-block; }
+        .btn-telegram { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: #2AABEE; color: white; text-decoration: none; padding: 12px 25px; border-radius: 30px; font-weight: bold; margin-top: 15px; font-size: 16px; transition: 0.2s; }
+        .btn-telegram:hover { background: #229ED9; transform: translateY(-2px); }
+        .loading-text { color: var(--secondary); font-weight: bold; margin-top: 15px; }
+        .header-wordart { width: 100%; max-width: 400px; height: 60px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <img src="images/Parul_University_Logo.webp" alt="Parul University" style="width: 100%; max-width: 250px; height: auto; max-height: 70px; object-fit: contain; margin: 0 auto 15px auto; display: block;" onerror="this.style.display='none'">
+
+        <svg viewBox="0 0 600 80" class="header-wordart">
+            <defs>
+                <linearGradient id="gradTitle" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:var(--tertiary);stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:var(--secondary);stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-size="34" font-weight="900" fill="url(#gradTitle)" font-family="Arial, sans-serif">MEDICATION ERROR AUDIT</text>
+            <text x="50%" y="80%" dominant-baseline="middle" text-anchor="middle" font-size="16" font-weight="normal" fill="var(--quaternary)" font-family="Arial, sans-serif" letter-spacing="2">SECURE PORTAL</text>
+        </svg>
+
+        <p style="color:#666;">Authenticate using the Medication Audit Telegram Bot to securely access the clinical portal.</p>
+
+        <div class="qr-box">
+            <img id="qr-code" src="" alt="Telegram QR Code" width="200" height="200" style="display:none;">
+            <p id="qr-loading">Generating secure session...</p>
+        </div>
+
+        <div>
+            <p style="margin:5px; font-weight:bold;">Ã¢â‚¬â€ OR Ã¢â‚¬â€</p>
+            <a href="#" id="tg-button" class="btn-telegram" style="display:none;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.18-.08-.05-.19-.02-.27 0l-3.85 2.44c-.32.22-.61.33-.9.32-.32-.01-.93-.18-1.38-.33-.56-.18-.99-.28-.95-.59.02-.16.24-.32.65-.49 2.54-1.11 4.24-1.81 5.09-2.17 2.42-.99 2.92-1.17 3.25-1.17.07 0 .23.02.32.08.07.05.12.15.13.26l.01.12z"/></svg>
+                Open in Telegram
+            </a>
+        </div>
+
+        <p class="loading-text" id="status-text">Waiting for authentication...</p>
+    </div>
+
+    <script>
+        async function initLogin() {
+            try {
+                // Fetch secure session token
+                const res = await fetch('/api/auth/generate-session');
+                const data = await res.json();
+                const token = data.session_token;
+
+                const botUsername = "MedicationAudit_bot"; // Your bot
+                const tgLink = `https://t.me/${botUsername}?start=${token}`;
+
+                // Render QR and Button
+                document.getElementById('qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tgLink)}`;
+                document.getElementById('qr-code').style.display = 'block';
+                document.getElementById('qr-loading').style.display = 'none';
+
+                const btn = document.getElementById('tg-button');
+                btn.href = tgLink;
+                btn.style.display = 'inline-flex';
+
+                // Poll backend every 2 seconds to check if mobile device scanned it
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const pollRes = await fetch(`/api/auth/poll-session/${token}`);
+                        if (pollRes.ok) {
+                            const pollData = await pollRes.json();
+                            if (pollData.status === 'success') {
+                                clearInterval(pollInterval);
+                                document.getElementById('status-text').style.color = '#4CAF50';
+                                document.getElementById('status-text').textContent = 'Authentication Successful! Redirecting...';
+
+                                // Save Auth State to Browser
+                                localStorage.setItem('authToken', token);
+                                localStorage.setItem('authExpiry', pollData.expires_at);
+
+                                // Redirect to permitted view
+                                setTimeout(() => {
+                                    window.location.href = pollData.target_view;
+                                }, 1000);
+                            }
+                        }
+                    } catch(err) { document.getElementById("status-text").textContent = "Backend polling error (Check terminal)"; console.warn("Polling error...", err); }
+                }, 2000);
+
+            } catch (err) {
+                document.getElementById('status-text').style.color = 'red';
+                document.getElementById('status-text').textContent = 'Backend offline. Please start run_backend.bat';
+                console.error(err);
+            }
+        }
+
+        initLogin();
+    </script>
+</body>
+</html>

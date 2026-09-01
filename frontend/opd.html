@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPD Medication Error Audit</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* OPD Specific Compact Styles */
+        .opd-drug-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 15px; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background: #fafafa; position: relative; }
+        .opd-drug-row .form-group { margin-bottom: 0; flex: 1; min-width: 150px; }
+        .opd-drug-row .d-display-wrapper { flex: 2; min-width: 200px; }
+        .btn-tag-error { background: #ff9800; color: white; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; height: 38px; white-space: nowrap; }
+        .btn-tag-error:hover { background: #f57c00; }
+        .opd-error-panel { display: none; margin-top: 15px; width: 100%; border-top: 2px dashed #ffb74d; padding-top: 15px; }
+        @media (max-width: 768px) {
+            .opd-drug-row { flex-direction: column; align-items: stretch; }
+            .btn-tag-error { height: auto; }
+        }
+    </style>
+    <script src="js/auth.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header-container" style="position:relative;">
+            <button onclick="logout()" style="position:absolute; right:20px; top:20px; background:#f44336; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Logout</button>
+            <img src="images/Parul_University_Logo.webp" alt="Parul University Logo" class="header-logo" onerror="this.style.display='none'">
+            <svg viewBox="0 0 600 80" class="header-wordart">
+                <defs>
+                    <linearGradient id="gradTitle" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:var(--tertiary);stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:var(--secondary);stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-size="34" font-weight="900" fill="url(#gradTitle)" font-family="Arial, sans-serif">OPD MEDICATION AUDIT</text>
+                <text x="50%" y="80%" dominant-baseline="middle" text-anchor="middle" font-size="16" font-weight="normal" fill="var(--quaternary)" font-family="Arial, sans-serif" letter-spacing="2">FAST DATA ENTRY MODULE</text>
+            </svg>
+        </div>
+
+        <form id="opdAuditForm" onsubmit="submitOpdForm(event)">
+            <!-- Compact Patient Context -->
+            <div class="card" id="patient-section">
+                <h2>Patient Context (OPD)</h2>
+                <div style="display:flex; gap:15px;">
+                    <div class="form-group" style="flex:1;"><label>Patient UHID *</label><input type="text" id="p-uhid" required></div>
+                    <div class="form-group" style="flex:1;">
+                        <label>OPD Clinic / Dept *</label>
+                        <select id="p-dept" required>
+                            <option value="">Select Clinic</option>
+                            <option value="General Medicine OPD">General Medicine OPD</option>
+                            <option value="Pediatric OPD">Pediatric OPD</option>
+                            <option value="Gynecology & OBG OPD">Gynecology & OBG OPD</option>
+                            <option value="Orthopedic OPD">Orthopedic OPD</option>
+                            <option value="Surgery OPD">Surgery OPD</option>
+                            <option value="Skin & VD OPD">Skin & VD OPD</option>
+                            <option value="Psychiatry OPD">Psychiatry OPD</option>
+                            <option value="ENT OPD">ENT OPD</option>
+                            <option value="Ophthalmology OPD">Ophthalmology OPD</option>
+                            <option value="Dental OPD">Dental OPD</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:15px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Age</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="number" id="p-age" placeholder="Age" style="flex:2;">
+                            <select id="p-age-unit" style="flex:1;"><option value="Years">Yrs</option><option value="Months">Mos</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Gender</label>
+                        <select id="p-gender"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                    </div>
+                </div>
+
+                <div class="clinical-field-wrapper form-group">
+                    <label>Diagnoses (Select multiple via Search)</label>
+                    <input type="text" id="diagnosis-display" placeholder="Search conditions..." autocomplete="off">
+                    <ul id="diagnosis-results" class="autocomplete-dropdown" style="display:none;"></ul>
+                    <div id="diagnosis-pills" class="pills-container"></div>
+                </div>
+            </div>
+
+            <!-- Fast Drug Grid -->
+            <h2>All Prescribed/Dispensed Medications</h2>
+            <p style="font-size:14px; color:#666; margin-top:-10px; margin-bottom:15px;">Log all medications to track total opportunity. Click "Tag Error" only if an error occurred for that specific drug.</p>
+
+            <div id="opd-drugs-container"></div>
+
+            <button type="button" class="btn btn-secondary" onclick="addOpdDrug()">+ Add Another Medication Row</button>
+            <br><br>
+            <button type="submit" class="btn btn-submit btn-block">Submit OPD Audit</button>
+        </form>
+
+        <datalist id="route-datalist">
+            <option value="Oral (PO)"></option><option value="Intravenous (IV)"></option><option value="Intramuscular (IM)"></option>
+            <option value="Subcutaneous (SC)"></option><option value="Sublingual (SL)"></option><option value="Topical"></option>
+            <option value="Inhalation"></option><option value="Ophthalmic"></option><option value="Otic"></option>
+        </datalist>
+    </div>
+    <script src="js/opd_app.js"></script>
+</body>
+</html>
