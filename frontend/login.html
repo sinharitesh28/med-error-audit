@@ -12,6 +12,8 @@
         .btn-telegram:hover { background: #229ED9; transform: translateY(-2px); }
         .loading-text { color: var(--secondary); font-weight: bold; margin-top: 15px; }
         .header-wordart { width: 100%; max-width: 400px; height: 60px; margin: 15px 0; }
+        /* Debugger Styles */
+        #debug-log { margin-top: 20px; background: #1e1e1e; color: #00ff00; font-family: monospace; font-size: 11px; padding: 10px; text-align: left; border-radius: 4px; max-height: 150px; overflow-y: auto; display: none; }
     </style>
 </head>
 <body>
@@ -37,28 +39,38 @@
         </div>
 
         <div>
-            <p style="margin:5px; font-weight:bold;">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ OR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬</p>
-            <a href="#" id="tg-button" class="btn-telegram" style="display:none;">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.18-.08-.05-.19-.02-.27 0l-3.85 2.44c-.32.22-.61.33-.9.32-.32-.01-.93-.18-1.38-.33-.56-.18-.99-.28-.95-.59.02-.16.24-.32.65-.49 2.54-1.11 4.24-1.81 5.09-2.17 2.42-.99 2.92-1.17 3.25-1.17.07 0 .23.02.32.08.07.05.12.15.13.26l.01.12z"/></svg>
-                Open in Telegram
-            </a>
+            <p style="margin:5px; font-weight:bold;">- OR -</p>
+            <a href="#" id="tg-button" class="btn-telegram" style="display:none;">Open in Telegram</a>
         </div>
 
         <p class="loading-text" id="status-text">Waiting for authentication...</p>
+
+        <div id="debug-log"></div>
     </div>
 
     <script>
+        const debugLog = document.getElementById('debug-log');
+        function logDebug(msg) {
+            debugLog.style.display = 'block';
+            debugLog.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
         async function initLogin() {
             try {
-                // Fetch secure session token
+                logDebug("Requesting session token...");
+                // Force relative URL to bypass CORS and Cloud routing issues
                 const res = await fetch('/api/auth/generate-session');
+
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+
                 const data = await res.json();
                 const token = data.session_token;
+                logDebug(`Token received: ${token.substring(0, 8)}...`);
 
-                const botUsername = "MedicationAudit_bot"; // Your bot
+                const botUsername = "MedicationAudit_bot";
                 const tgLink = `https://t.me/${botUsername}?start=${token}`;
 
-                // Render QR and Button
                 document.getElementById('qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tgLink)}`;
                 document.getElementById('qr-code').style.display = 'block';
                 document.getElementById('qr-loading').style.display = 'none';
@@ -67,43 +79,44 @@
                 btn.href = tgLink;
                 btn.style.display = 'inline-flex';
 
-                // Poll backend every 2 seconds to check if mobile device scanned it
+                logDebug("Starting 2-second polling cycle...");
                 const pollInterval = setInterval(async () => {
                     try {
-                        // Force the browser to skip cache and hit the live database
-                        const pollRes = await fetch(`/api/auth/poll-session/${token}?_t=` + new Date().getTime(), {
+                        const url = `/api/auth/poll-session/${token}?_t=` + new Date().getTime();
+                        const pollRes = await fetch(url, {
                             method: 'GET',
-                            headers: {
-                                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                'Pragma': 'no-cache',
-                                'Expires': '0'
-                            },
+                            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
                             cache: 'no-store'
                         });
-                        if (pollRes.ok) {
-                            const pollData = await pollRes.json();
-                            if (pollData.status === 'success') {
-                                clearInterval(pollInterval);
-                                document.getElementById('status-text').style.color = '#4CAF50';
-                                document.getElementById('status-text').textContent = 'Authentication Successful! Redirecting...';
 
-                                // Save Auth State to Browser
-                                localStorage.setItem('authToken', token);
-                                localStorage.setItem('authExpiry', pollData.expires_at);
-
-                                // Redirect to permitted view
-                                setTimeout(() => {
-                                    window.location.href = pollData.target_view;
-                                }, 1000);
-                            }
+                        if (!pollRes.ok) {
+                            logDebug(`Poll failed: HTTP ${pollRes.status}`);
+                            return;
                         }
-                    } catch(err) { document.getElementById("status-text").textContent = "Backend polling error (Check terminal)"; console.warn("Polling error...", err); }
+
+                        const pollData = await pollRes.json();
+                        logDebug(`Poll DB Status: ${pollData.status}`);
+
+                        if (pollData.status === 'success') {
+                            clearInterval(pollInterval);
+                            document.getElementById('status-text').style.color = '#4CAF50';
+                            document.getElementById('status-text').textContent = 'Authentication Successful! Redirecting...';
+                            logDebug(`Redirecting to: ${pollData.target_view}`);
+
+                            localStorage.setItem('authToken', token);
+                            localStorage.setItem('authExpiry', pollData.expires_at);
+
+                            setTimeout(() => { window.location.href = pollData.target_view; }, 1000);
+                        }
+                    } catch(err) { 
+                        logDebug(`Poll Error: ${err.message}`);
+                    }
                 }, 2000);
 
             } catch (err) {
                 document.getElementById('status-text').style.color = 'red';
-                document.getElementById('status-text').textContent = 'Backend offline. Please start run_backend.bat';
-                console.error(err);
+                document.getElementById('status-text').textContent = 'Backend Error: ' + err.message;
+                logDebug(`Init Error: ${err.message}`);
             }
         }
 

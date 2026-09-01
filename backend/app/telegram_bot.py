@@ -7,14 +7,12 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import get_db_connection
 import pymysql
 
-# Config
 BOT_TOKEN = "8872364345:AAGfTP4_tdYWG1SDj5_Z7fwHGBR4VfotptE"
 ADMIN_CHAT_ID = "863968849"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Registration States
 class RegState(StatesGroup):
     session_token = State()
     institute = State()
@@ -46,7 +44,6 @@ async def start_handler(message: types.Message, state: FSMContext):
             await message.answer("Welcome to Medication Audit. You are not registered.")
             return
 
-        # Begin Registration
         await state.update_data(session_token=session_token)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="PIP", callback_data="inst_PIP"), InlineKeyboardButton(text="PIPR", callback_data="inst_PIPR")],
@@ -57,36 +54,33 @@ async def start_handler(message: types.Message, state: FSMContext):
         return
 
     if not user['is_approved']:
-        await message.answer("â³ Your account is pending admin approval. Please wait.")
+        await message.answer("Your account is pending admin approval. Please wait.")
         return
 
     if not session_token:
         await message.answer(f"Welcome back, {user['full_name']}! Open the WebApp to scan a login QR code.")
         return
 
-    # User is Approved and scanning a token
     if user['role'] in ['Faculty', 'Admin']:
-        # Instantly log them into Faculty/Admin view
+        # Update DB!
         sync_db_query("UPDATE auth_sessions SET status='success', target_view='faculty_dashboard.html', chat_id=%s WHERE session_token=%s", (chat_id, session_token), commit=True)
-        await message.answer("âœ… Authentication successful! You will be redirected to the Faculty Dashboard on your browser.")
+        # Using pure ASCII text to avoid encoding crashes
+        await message.answer("[SUCCESS] Authentication complete! You will be redirected to the Faculty Dashboard on your browser.")
     else:
-        # Student View Selection
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="IPD Audit", callback_data=f"view_index.html_{session_token}")],
             [InlineKeyboardButton(text="OPD Audit", callback_data=f"view_opd.html_{session_token}")]
         ])
-        await message.answer(f"âœ… Hello {user['full_name']}. Which patient are you working on?", reply_markup=kb)
+        await message.answer(f"[SUCCESS] Hello {user['full_name']}. Which patient are you working on?", reply_markup=kb)
 
-# --- Student View Selection Handler ---
 @dp.callback_query(F.data.startswith('view_'))
 async def select_view(callback: types.CallbackQuery):
     _, target_view, session_token = callback.data.split('_', 2)
     chat_id = str(callback.from_user.id)
     sync_db_query("UPDATE auth_sessions SET status='success', target_view=%s, chat_id=%s WHERE session_token=%s", (target_view, chat_id, session_token), commit=True)
-    await callback.message.edit_text(f"âœ… Logged in successfully! Check your browser.")
+    await callback.message.edit_text("[SUCCESS] Logged in successfully! Check your browser.")
     await callback.answer()
 
-# --- Registration Flow ---
 @dp.callback_query(RegState.institute)
 async def reg_institute(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(institute=callback.data.split('_')[1])
@@ -113,37 +107,30 @@ async def reg_name(message: types.Message, state: FSMContext):
 async def reg_id(message: types.Message, state: FSMContext):
     chat_id = str(message.from_user.id)
     data = await state.get_data()
-
-    # Save to DB (Unapproved)
     sync_db_query(
         "INSERT INTO users (chat_id, full_name, institute, role, id_number, is_approved) VALUES (%s, %s, %s, %s, %s, FALSE)",
         (chat_id, data['full_name'], data['institute'], data['role'], message.text), commit=True
     )
+    await message.answer("Registration submitted! Please wait till your institute admin approves your access.")
 
-    # Notify User
-    await message.answer("âœ… Registration submitted! Please wait till your institute admin approves your access. Once approved, you can scan the QR code on the website again.")
-
-    # Notify Admin
     admin_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Approve", callback_data=f"approve_{chat_id}"), InlineKeyboardButton(text="Reject", callback_data=f"reject_{chat_id}")]
     ])
-    admin_text = f"ðŸš¨ New Registration Request\nName: {data['full_name']}\nRole: {data['role']}\nInst: {data['institute']}\nID: {message.text}"
+    admin_text = f"New Registration Request\nName: {data['full_name']}\nRole: {data['role']}\nInst: {data['institute']}\nID: {message.text}"
     await bot.send_message(ADMIN_CHAT_ID, admin_text, reply_markup=admin_kb)
     await state.clear()
 
-# --- Admin Approval Handler ---
 @dp.callback_query(F.data.startswith('approve_') | F.data.startswith('reject_'))
 async def admin_action(callback: types.CallbackQuery):
     action, user_chat_id = callback.data.split('_')
-
     if action == "approve":
         sync_db_query("UPDATE users SET is_approved=TRUE WHERE chat_id=%s", (user_chat_id,), commit=True)
-        await callback.message.edit_text(callback.message.text + "\n\nâœ… APPROVED")
-        await bot.send_message(user_chat_id, "ðŸŽ‰ Your account has been approved by the Admin! You can now scan the QR code on the WebApp to log in.")
+        await callback.message.edit_text(callback.message.text + "\n\n[APPROVED]")
+        await bot.send_message(user_chat_id, "Your account has been approved! You can now scan the QR code on the WebApp.")
     else:
         sync_db_query("DELETE FROM users WHERE chat_id=%s", (user_chat_id,), commit=True)
-        await callback.message.edit_text(callback.message.text + "\n\nâŒ REJECTED")
-        await bot.send_message(user_chat_id, "âŒ Your registration request was rejected by the Admin.")
+        await callback.message.edit_text(callback.message.text + "\n\n[REJECTED]")
+        await bot.send_message(user_chat_id, "Your registration request was rejected by the Admin.")
     await callback.answer()
 
 async def start_bot():
