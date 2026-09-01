@@ -37,7 +37,7 @@
         </div>
 
         <div>
-            <p style="margin:5px; font-weight:bold;">Ã¢â‚¬â€ OR Ã¢â‚¬â€</p>
+            <p style="margin:5px; font-weight:bold;">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ OR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬</p>
             <a href="#" id="tg-button" class="btn-telegram" style="display:none;">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.18-.08-.05-.19-.02-.27 0l-3.85 2.44c-.32.22-.61.33-.9.32-.32-.01-.93-.18-1.38-.33-.56-.18-.99-.28-.95-.59.02-.16.24-.32.65-.49 2.54-1.11 4.24-1.81 5.09-2.17 2.42-.99 2.92-1.17 3.25-1.17.07 0 .23.02.32.08.07.05.12.15.13.26l.01.12z"/></svg>
                 Open in Telegram
@@ -70,7 +70,16 @@
                 // Poll backend every 2 seconds to check if mobile device scanned it
                 const pollInterval = setInterval(async () => {
                     try {
-                        const pollRes = await fetch(`/api/auth/poll-session/${token}`);
+                        // Force the browser to skip cache and hit the live database
+                        const pollRes = await fetch(`/api/auth/poll-session/${token}?_t=` + new Date().getTime(), {
+                            method: 'GET',
+                            headers: {
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                'Pragma': 'no-cache',
+                                'Expires': '0'
+                            },
+                            cache: 'no-store'
+                        });
                         if (pollRes.ok) {
                             const pollData = await pollRes.json();
                             if (pollData.status === 'success') {
