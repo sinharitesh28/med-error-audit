@@ -126,3 +126,133 @@ def submit_audit(data: AuditSubmission):
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
     finally:
         conn.close()
+
+@router.get("/datasheet")
+def get_datasheet():
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        # Fetch everything joined
+        query = '''
+            SELECT 
+                p.id as p_id, p.encounter_type, p.patient_name, p.department, p.uhid, 
+                p.date_of_admission, p.age, p.age_unit, p.gender, p.consultant_name, 
+                p.diagnosis_term, p.is_transcribed, p.treatment_chart_url,
+                d.id as d_id, d.drug_term, d.dose, d.route, d.frequency,
+                e.error_category, e.sub_category, e.severity, e.remarks, e.evidence_image_url
+            FROM patients p
+            JOIN drugs d ON p.id = d.patient_id
+            LEFT JOIN medication_errors e ON d.id = e.drug_id
+        '''
+        cursor.execute(query)
+        raw_data = cursor.fetchall()
+
+        # Group by Drug (Each drug is ONE row in the datasheet)
+        drugs_map = {}
+        for row in raw_data:
+            did = row['d_id']
+            if did not in drugs_map:
+                drugs_map[did] = {
+                    "patient": row,
+                    "drug": row,
+                    "errors": {}
+                }
+            if row['error_category'] and row['sub_category']:
+                drugs_map[did]["errors"][(row['error_category'], row['sub_category'])] = {
+                    "severity": row['severity'],
+                    "remarks": row['remarks'],
+                    "image": row['evidence_image_url']
+                }
+
+        # The NA Matrix Calculator
+        def get_status(p, d, errs, cat, sub):
+            # 1. If reported, return severity (A-I)
+            if (cat, sub) in errs: return errs[(cat, sub)]['severity']
+
+            # 2. OPD Exclusions
+            if p.get('encounter_type') == 'OPD' and cat not in ['Prescription Error', 'Dispensing Error']:
+                return 'NA'
+
+            # 3. Transcription Exclusions
+            if cat == 'Transcription Error' and p.get('is_transcribed') == 'No':
+                return 'NA'
+
+            # 4. IV/Route Exclusions
+            iv_errors = ['Intravenous incompatibility', 'Inappropriate dilutions/infusions', 'No/Wrong Rate of administration', 'Wrong Rate', 'Wrong rate']
+            route = str(d.get('route', '')).lower()
+            is_iv = 'iv' in route or 'intravenous' in route or 'infusion' in route
+            if sub in iv_errors and not is_iv:
+                return 'NA'
+
+            # 5. Default No Error
+            return '0'
+
+        # Build Flat Rows
+        datasheet = []
+        for did, data in drugs_map.items():
+            p = data['patient']
+            d = data['drug']
+            e = data['errors']
+
+            # Helper to get remarks/images safely
+            def get_meta(cat, field):
+                # Joins remarks from multiple subcategories in the same category
+                meta = [v[field] for k, v in e.items() if k[0] == cat and v[field]]
+                return " | ".join(meta) if meta else ""
+
+            row = {
+                "Encounter": p.get('encounter_type'),
+                "Patient Name": p.get('patient_name'),
+                "Department": p.get('department'),
+                "UHID": p.get('uhid'),
+                "Admission Date": str(p.get('date_of_admission') or ''),
+                "Age/Gender": f"{p.get('age')} {p.get('age_unit')} / {p.get('gender')}",
+                "Consultant": p.get('consultant_name'),
+                "Diagnosis": p.get('diagnosis_term'),
+                "Transcribed?": p.get('is_transcribed'),
+                "Chart Image": p.get('treatment_chart_url'),
+
+                "Drug Name": d.get('drug_term'),
+                "Dose": d.get('dose'),
+                "Route": d.get('route'),
+                "Frequency": d.get('frequency'),
+
+                # Prescription
+                "Rx: Inappropriate selection": get_status(p, d, e, 'Prescription Error', 'Inappropriate selection'),
+                "Rx: CAPITAL LETTERS": get_status(p, d, e, 'Prescription Error', 'Drug orders in CAPITAL LETTERS'),
+                "Rx: Illegible": get_status(p, d, e, 'Prescription Error', 'Illegible handwriting'),
+                "Rx: Abbreviations": get_status(p, d, e, 'Prescription Error', 'Error prone abbreviations'),
+                "Rx: Generic name": get_status(p, d, e, 'Prescription Error', 'Generic name written'),
+                "Rx: Wrong Dose": get_status(p, d, e, 'Prescription Error', 'No/Wrong Dose'),
+                "Rx: Wrong Route": get_status(p, d, e, 'Prescription Error', 'No/Wrong Route'),
+                "Rx: IV Incompat.": get_status(p, d, e, 'Prescription Error', 'Intravenous incompatibility'),
+                "Rx Remarks": get_meta('Prescription Error', 'remarks'),
+                "Rx Evidence": get_meta('Prescription Error', 'image'),
+
+                # Transcription
+                "Tx: Wrong drug": get_status(p, d, e, 'Transcription Error', 'Wrong drug'),
+                "Tx: Wrong route": get_status(p, d, e, 'Transcription Error', 'Wrong Route'),
+                "Tx Remarks": get_meta('Transcription Error', 'remarks'),
+                "Tx Evidence": get_meta('Transcription Error', 'image'),
+
+                # Dispensing
+                "Disp: Wrong drug": get_status(p, d, e, 'Dispensing Error', 'Wrong drug'),
+                "Disp: Expired": get_status(p, d, e, 'Dispensing Error', 'Expired/Near expiry drugs'),
+                "Disp Remarks": get_meta('Dispensing Error', 'remarks'),
+                "Disp Evidence": get_meta('Dispensing Error', 'image'),
+
+                # Admin
+                "Admin: Omission": get_status(p, d, e, 'Administration Error', 'Dose Omission'),
+                "Admin: Wrong patient": get_status(p, d, e, 'Administration Error', 'Wrong patient'),
+                "Admin Remarks": get_meta('Administration Error', 'remarks'),
+                "Admin Evidence": get_meta('Administration Error', 'image'),
+            }
+            datasheet.append(row)
+
+        return {"status": "success", "data": datasheet}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

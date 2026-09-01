@@ -315,8 +315,15 @@ async function submitForm(e) {
         age_unit: document.getElementById('p-age-unit').value,
         gender: document.getElementById('p-gender').value,
         diagnosis_term: combinedTerms,
-        diagnosis_code: combinedCodes
+        diagnosis_code: combinedCodes,
+        is_transcribed: document.getElementById('p-transcribed').value
     };
+    
+    const chartFile = document.getElementById('p-chart-file').files[0];
+    if(chartFile) {
+        submitBtn.textContent = 'Uploading Patient Chart...';
+        patient.treatment_chart_url = await uploadToDrive(chartFile, 'PatientCharts');
+    }
 
     const drugs = [];
     document.querySelectorAll('.drug-entry').forEach(async (drugEl) => {

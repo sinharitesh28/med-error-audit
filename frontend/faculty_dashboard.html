@@ -6,13 +6,111 @@
     <title>Faculty Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/auth.js"></script>
+    <style>
+        .dashboard-container { padding: 20px; max-width: 98vw; margin: 0 auto; }
+        .table-wrapper { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-top: 20px; max-height: 70vh; overflow-y: auto;}
+        table { width: max-content; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 15px; border: 1px solid #e0e0e0; text-align: left; white-space: nowrap; }
+        th { background: var(--secondary); color: white; position: sticky; top: 0; z-index: 10; }
+        .severity-0 { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; text-align: center;}
+        .severity-na { background-color: #f5f5f5; color: #9e9e9e; font-style: italic; text-align: center;}
+        .severity-err { background-color: #ffebee; color: #c62828; font-weight: bold; text-align: center;}
+    </style>
 </head>
-<body style="padding: 40px; text-align: center;">
-    <div class="card" style="max-width: 600px; margin: 0 auto; padding: 40px;">
-        <h1 style="color:var(--tertiary);">Faculty & Admin Dashboard</h1>
-        <p>Welcome! This dashboard is restricted to approved Faculty.</p>
-        <p style="color: #666;">Data Sheets, Student Lists, and Analytics will be built here in the next phase.</p>
-        <button class="btn btn-secondary" style="margin-top:20px;" onclick="logout()">Logout</button>
+<body>
+    <div class="dashboard-container">
+        <div class="header-container" style="position:relative; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h1 style="color:var(--tertiary); margin:0;">Faculty Analytics Dashboard</h1>
+                <p style="margin:5px 0 0 0; color:#666;">Automated Medication Error DataSheet</p>
+            </div>
+            <div>
+                <button class="btn btn-secondary" onclick="exportToCSV()">📥 Download CSV</button>
+                <button class="btn" style="background:#f44336; color:white;" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table id="datasheetTable">
+                <thead id="ds-head"><tr><th>Loading Data...</th></tr></thead>
+                <tbody id="ds-body"></tbody>
+            </table>
+        </div>
     </div>
+
+    <script>
+        let globalData = [];
+        async function loadData() {
+            try {
+                const res = await fetch('/api/audit/datasheet');
+                const json = await res.json();
+                if(json.status === 'success') {
+                    globalData = json.data;
+                    renderTable(globalData);
+                }
+            } catch(e) { alert("Failed to load datasheet: " + e.message); }
+        }
+
+        function renderTable(data) {
+            if(data.length === 0) {
+                document.getElementById('ds-head').innerHTML = '<tr><th>No Audit Data Found</th></tr>';
+                return;
+            }
+
+            const cols = Object.keys(data[0]);
+
+            // Render Headers
+            let headHtml = '<tr>';
+            cols.forEach(c => headHtml += `<th>${c}</th>`);
+            headHtml += '</tr>';
+            document.getElementById('ds-head').innerHTML = headHtml;
+
+            // Render Body
+            let bodyHtml = '';
+            data.forEach(row => {
+                bodyHtml += '<tr>';
+                cols.forEach(c => {
+                    let val = row[c] || '';
+                    let cssClass = '';
+
+                    if(val === '0') cssClass = 'severity-0';
+                    else if(val === 'NA') cssClass = 'severity-na';
+                    else if(['A','B','C','D','E','F','G','H','I'].includes(val)) cssClass = 'severity-err';
+
+                    if(String(val).startsWith('http')) {
+                        val = `<a href="${val}" target="_blank" style="color:blue;">View Evidence</a>`;
+                    }
+
+                    bodyHtml += `<td class="${cssClass}">${val}</td>`;
+                });
+                bodyHtml += '</tr>';
+            });
+            document.getElementById('ds-body').innerHTML = bodyHtml;
+        }
+
+        function exportToCSV() {
+            if(globalData.length === 0) return;
+            const cols = Object.keys(globalData[0]);
+            let csv = cols.join(',') + '\n';
+
+            globalData.forEach(row => {
+                let r = cols.map(c => {
+                    let val = String(row[c] || '').replace(/"/g, '""');
+                    return `"${val}"`;
+                });
+                csv += r.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Medication_Audit_Export_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+
+        // Run on load
+        loadData();
+    </script>
 </body>
 </html>

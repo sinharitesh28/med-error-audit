@@ -25,6 +25,7 @@ def poll_session(token: str):
     conn = get_db_connection()
     try:
         cursor = conn.cursor(pymysql.cursors.DictCursor)
+        conn.commit()  # Force snapshot reset
         cursor.execute("SELECT status, target_view FROM auth_sessions WHERE session_token = %s", (token,))
         session = cursor.fetchone()
 
